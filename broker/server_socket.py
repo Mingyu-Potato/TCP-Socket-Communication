@@ -12,6 +12,7 @@ class socket_Transportation():
         self.PORT = PORT
 
         self.socket_dict = dict()
+        self.socketIsAlive = [False, False]
 
 
     def start_process(self):
@@ -32,14 +33,20 @@ class socket_Transportation():
 
         try:
             while True:
+                self.socketIsAlive[0] = False
                 print('>> Wait')
                 inner_socket, inner_addr = server_socket.accept()
                 self.socket_dict[inner_socket] = inner_addr
 
+                self.socketIsAlive[0] = True
+
                 self.inner2robot(inner_socket)
+
+                #
+                del self.socket_dict[inner_socket]
             
         except Exception as e :
-            print ('에러는? : ',e)
+            print ('inner 에러는? : ',e)
 
         finally:
             inner_socket.close()
@@ -55,28 +62,40 @@ class socket_Transportation():
 
         try:
             while True:
+                self.socketIsAlive[1] = False
+
+                print('?',self.socketIsAlive[1])
+                
                 print('>> Wait')
                 robot_socket, robot_addr = server_socket.accept()
                 self.socket_dict[robot_socket] = robot_addr
 
+                self.socketIsAlive[1] = True
+                print('!',self.socketIsAlive[1])
+
                 self.robot2inner(robot_socket)
 
+                #
+                del self.socket_dict[robot_socket]
+
         except Exception as e :
-            print ('에러는? : ',e)
+            print ('robot 에러는? : ',e)
 
         finally:
             robot_socket.close()
 
 
     def inner2robot(self, inner_socket):
-        print('>> Connected by', self.socket_dict[inner_socket][0])
-
+        print('>> Connected by', self.socket_dict[inner_socket][0], f'({len(self.socket_dict)} / 2)')
+        
         while True:
+            
             try:
                 data = inner_socket.recv(1024)
 
                 if not data:
-                    print('>> Disconnected by ' + self.socket_dict[inner_socket][0])
+                    del self.socket_dict[inner_socket]
+                    print('>> Disconnected by ' + self.socket_dict[inner_socket][0], f'({len(self.socket_dict)} / 2)')
                     break
 
                 print('>> Received from', self.socket_dict[inner_socket][0], ':', data.decode())
@@ -87,7 +106,8 @@ class socket_Transportation():
                     else:
                         robot_socket = k
 
-                robot_socket.send(data)
+                if self.socketIsAlive[1]:
+                    robot_socket.send(data)
 
             except ConnectionResetError as e:
                 print('>> Disconnected by ' + self.socket_dict[inner_socket][0])
@@ -95,14 +115,15 @@ class socket_Transportation():
 
 
     def robot2inner(self, robot_socket):
-        print('>> Connected by', self.socket_dict[robot_socket][0])
-
+        print('>> Connected by', self.socket_dict[robot_socket][0], f'({len(self.socket_dict)} / 2)')
         while True:
+            
             try:
                 data = robot_socket.recv(1024)
 
                 if not data:
-                    print('>> Disconnected by ' + self.socket_dict[robot_socket][0])
+                    del self.socket_dict[robot_socket]
+                    print('>> Disconnected by ' + self.socket_dict[robot_socket][0], f'({len(self.socket_dict)} / 2)')
                     break
 
                 print('>> Received from', self.socket_dict[robot_socket][0], ':', data.decode())
@@ -113,7 +134,8 @@ class socket_Transportation():
                     else:
                         inner_socket = k
 
-                inner_socket.send(data)
+                if self.socketIsAlive[0]:
+                    inner_socket.send(data)
 
             except ConnectionResetError as e:
                 print('>> Disconnected by ' + self.socket_dict[robot_socket][0])
@@ -123,8 +145,8 @@ class socket_Transportation():
 
 if __name__ == '__main__':
     # 서버 IP 및 열어줄 포트
-    INNER_HOST = '10.10.33.161' # 내부망
-    ROBOT_HOST = '192.168.2.2' # 공유기
+    INNER_HOST = '10.10.33.148' # 내부망
+    ROBOT_HOST = '192.168.2.5' # 공유기
     PORT = 9999
 
     a = socket_Transportation(INNER_HOST, ROBOT_HOST, PORT)
